@@ -7,11 +7,12 @@ import (
 )
 
 type bot struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Script string `json:"script"`
-	Status string `json:"status"`
-	PID    int    `json:"pid"`
+	ID     string   `json:"id"`
+	Name   string   `json:"name"`
+	Script string   `json:"script"`
+	Params []string `json:"params"`
+	Status string   `json:"status"`
+	PID    int      `json:"pid"`
 }
 
 type heartbeat struct {
@@ -52,7 +53,15 @@ func (b *bot) _startDreamBotClient() {
 	log.Println("Starting DreamBot client for Bot: " + b.Name + " with script: " + b.Script + "")
 
 	client_path := "C:\\Users\\Administrator\\DreamBot\\BotData\\client.jar"
-	cmd := exec.Command("java", "-jar", client_path, "-account", b.Name, "-script", b.Script, "-world", "f2p")
+
+	var clientParams = []string{"-jar", client_path, "-account", b.Name, "-script", b.Script, "-world", "f2p", "-covert", "-fresh"}
+
+	// chech for bot/script specific params
+	if b.Params != nil {
+		clientParams = append(clientParams, b.Params...)
+	}
+
+	cmd := exec.Command("java", clientParams...)
 	if err := cmd.Start(); err != nil {
 		log.Fatal(err)
 	}

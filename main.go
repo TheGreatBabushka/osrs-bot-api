@@ -20,7 +20,7 @@ func main() {
 
 	router.DELETE("/bots/:id", deleteBot)
 
-	router.Run("localhost:8080")
+	router.Run("192.168.1.156:8080")
 }
 
 func getBots(c *gin.Context) {
@@ -30,6 +30,7 @@ func getBots(c *gin.Context) {
 func putBots(c *gin.Context) {
 	var newBot bot
 	if err := c.BindJSON(&newBot); err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
