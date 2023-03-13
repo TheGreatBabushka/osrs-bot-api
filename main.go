@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -81,21 +82,35 @@ func deleteBot(c *gin.Context) {
 }
 
 func handleHeartbeat(c *gin.Context) {
+
 	var hb heartbeat
 	if err := c.BindJSON(&hb); err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		fmt.Printf("Error parsing heartbeat: %s\n", c.Request.Body)
 		return
 	}
 
 	for i, b := range bots {
 		if b.ID == hb.ID {
 			bots[i].Status = hb.Status
+
+			hb_changed := false
+			if latestHeartbeats[hb.ID].Status != hb.Status {
+				hb_changed = true
+			}
 			latestHeartbeats[hb.ID] = hb
+
+			if hb_changed {
+				fmt.Println("Bot " + hb.ID + " status has changed to: " + hb.Status)
+			}
 
 			c.IndentedJSON(http.StatusOK, gin.H{"message": "heartbeat received"})
 			return
 		}
 	}
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "invalid id - bot not found. Is it registered?"})
+
+	fmt.Println("Heartbeat received from unknown bot with id: " + hb.ID)
+	bots = append(bots, bot{ID: hb.ID, Status: hb.Status})
 }
 
 // REST API
