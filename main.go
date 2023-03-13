@@ -21,7 +21,8 @@ func main() {
 
 	router.DELETE("/bots/:id", deleteBot)
 
-	router.Run("192.168.1.156:8080")
+	ip := "localhost"
+	router.Run(fmt.Sprintf("%s:8080", ip))
 }
 
 func getBots(c *gin.Context) {
