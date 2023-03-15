@@ -5,7 +5,7 @@ COPY . /api
 WORKDIR /api/
 RUN go mod tidy
 RUN go mod download
-RUN go build .
+RUN CGO_ENABLED=0 GOOS=linux go build .
 
 FROM alpine
 RUN apk add --no-cache ca-certificates && update-ca-certificates
