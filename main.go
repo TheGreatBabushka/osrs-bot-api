@@ -1,10 +1,12 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 var bots = []bot{}
@@ -20,6 +22,22 @@ func main() {
 	router.PUT("/bots", putBots)
 
 	router.DELETE("/bots/:id", deleteBot)
+
+	// db := database{}
+	sql_db, err := sql.Open("mysql", "admin:FredLongBottoms2$@/osrs-bots")
+	if err != nil {
+		panic(err.Error()) // Just for example purpose. You should use proper error handling instead of panic
+	}
+	defer sql_db.Close()
+
+	// Open doesn't open a connection. Validate DSN data:
+	err = sql_db.Ping()
+	if err != nil {
+		panic(err.Error()) // proper error handling instead of panic in your app
+	}
+
+	db := database{sql_db}
+	db.getAllAccounts()
 
 	router.Run("192.168.1.156:8080")
 }
@@ -83,6 +101,7 @@ func deleteBot(c *gin.Context) {
 
 func handleHeartbeat(c *gin.Context) {
 
+	// parse heartbeat
 	var hb heartbeat
 	if err := c.BindJSON(&hb); err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -90,18 +109,19 @@ func handleHeartbeat(c *gin.Context) {
 		return
 	}
 
+	// check if bot is known
 	for i, b := range bots {
-		if b.ID == hb.ID {
+		if b.Name == hb.Username {
 			bots[i].Status = hb.Status
 
 			hb_changed := false
-			if latestHeartbeats[hb.ID].Status != hb.Status {
+			if latestHeartbeats[hb.Username].Status != hb.Status {
 				hb_changed = true
 			}
-			latestHeartbeats[hb.ID] = hb
+			latestHeartbeats[hb.Username] = hb
 
 			if hb_changed {
-				fmt.Println("Bot " + hb.ID + " status has changed to: " + hb.Status)
+				fmt.Println("Bot " + hb.Username + " status has changed to: " + hb.Status)
 			}
 
 			c.IndentedJSON(http.StatusOK, gin.H{"message": "heartbeat received"})
@@ -109,8 +129,11 @@ func handleHeartbeat(c *gin.Context) {
 		}
 	}
 
-	fmt.Println("Heartbeat received from unknown bot with id: " + hb.ID)
-	bots = append(bots, bot{ID: hb.ID, Status: hb.Status})
+	// bot is not known, add it to the list of known bots
+	fmt.Println("Heartbeat received from unknown bot with username: " + hb.Username)
+	bots = append(bots, bot{Name: hb.Username, Status: hb.Status})
+
+	fmt.Println("Levels: " + fmt.Sprint(hb.Levels) + "\n")
 }
 
 // REST API
