@@ -4,42 +4,54 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
 )
 
+// list of all bots currently running and known to the server
 var bots = []bot{}
+
+// map for a bot's username to the last received heartbeat for that bot
 var latestHeartbeats = map[string]heartbeat{}
 
+var db database
+var sql_db *sql.DB
+
 func main() {
+	sql_db = initDatabase()
+	db = database{sql_db}
+
 	router := gin.Default()
 
 	router.GET("/bots", getBots)
-	router.GET("/bots/:id", getBotByID)
-
-	router.POST("/heartbeat", handleHeartbeat)
 	router.PUT("/bots", putBots)
-
+	router.GET("/bots/:id", getBotByID)
 	router.DELETE("/bots/:id", deleteBot)
 
-	// db := database{}
-	sql_db, err := sql.Open("mysql", "admin:FredLongBottoms2$@/osrs-bots")
-	if err != nil {
-		panic(err.Error()) // Just for example purpose. You should use proper error handling instead of panic
-	}
-	defer sql_db.Close()
+	router.POST("/heartbeat", handleHeartbeat)
 
-	// Open doesn't open a connection. Validate DSN data:
-	err = sql_db.Ping()
-	if err != nil {
-		panic(err.Error()) // proper error handling instead of panic in your app
-	}
+	router.GET("/accounts", getAccounts)
+	router.GET("/accounts/:id", getAccountByID)
 
-	db := database{sql_db}
-	db.getAllAccounts()
+	router.GET("/levels/:id", getLevelsByID)
 
 	router.Run("192.168.1.156:8080")
+}
+
+func initDatabase() *sql.DB {
+	sql_db, err := sql.Open("mysql", "admin:FredLongBottoms2$@/osrs-bots")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	err = sql_db.Ping()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	return sql_db
 }
 
 func getBots(c *gin.Context) {
@@ -118,10 +130,34 @@ func handleHeartbeat(c *gin.Context) {
 			if latestHeartbeats[hb.Username].Status != hb.Status {
 				hb_changed = true
 			}
+
+			leveled_up := false
+			if latestHeartbeats[hb.Username].Levels != hb.Levels {
+				leveled_up = true
+			}
+
 			latestHeartbeats[hb.Username] = hb
 
 			if hb_changed {
 				fmt.Println("Bot " + hb.Username + " status has changed to: " + hb.Status)
+			}
+
+			if leveled_up {
+				fmt.Println("Bot " + hb.Username + " leveled up!")
+
+				account, err := db.getAccountByUsername(hb.Username)
+				if err != nil {
+					fmt.Println("Error getting account for username: " + hb.Username)
+					fmt.Println(err)
+					return
+				}
+
+				err = db.updateLevelsForAccount(account, hb.Levels)
+				if err != nil {
+					fmt.Println("Error updating levels for account: " + account.Username)
+					fmt.Println(err)
+					return
+				}
 			}
 
 			c.IndentedJSON(http.StatusOK, gin.H{"message": "heartbeat received"})
@@ -134,6 +170,58 @@ func handleHeartbeat(c *gin.Context) {
 	bots = append(bots, bot{Name: hb.Username, Status: hb.Status})
 
 	fmt.Println("Levels: " + fmt.Sprint(hb.Levels) + "\n")
+}
+
+func getAccounts(c *gin.Context) {
+	accounts, err := db.getAllAccounts()
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, accounts)
+}
+
+func getAccountByID(c *gin.Context) {
+
+	id := c.Param("id")
+	id_int, err := strconv.Atoi(id)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	a, err := db.getAccount(id_int)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, a)
+}
+
+func getLevelsByID(c *gin.Context) {
+
+	id := c.Param("id")
+	id_int, err := strconv.Atoi(id)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	a, err := db.getAccount(id_int)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	levels, err := db.getLevelsForAccount(a.ID)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, levels)
 }
 
 // REST API

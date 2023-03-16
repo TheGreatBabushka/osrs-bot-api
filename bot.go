@@ -16,35 +16,10 @@ type bot struct {
 	PID      int      `json:"pid"`
 }
 
-type account_levels struct {
-	Attack      int `json:"attack"`
-	Strength    int `json:"strength"`
-	Defence     int `json:"defence"`
-	Ranged      int `json:"ranged"`
-	Magic       int `json:"magic"`
-	Prayer      int `json:"prayer"`
-	Runecraft   int `json:"runecraft"`
-	Hitpoints   int `json:"hitpoints"`
-	Agility     int `json:"agility"`
-	Herblore    int `json:"herblore"`
-	Thieving    int `json:"thieving"`
-	Crafting    int `json:"crafting"`
-	Fletching   int `json:"fletching"`
-	Slayer      int `json:"slayer"`
-	Hunter      int `json:"hunter"`
-	Mining      int `json:"mining"`
-	Smithing    int `json:"smithing"`
-	Fishing     int `json:"fishing"`
-	Cooking     int `json:"cooking"`
-	Firemaking  int `json:"firemaking"`
-	Woodcutting int `json:"woodcutting"`
-	Farming     int `json:"farming"`
-}
-
 type heartbeat struct {
-	Username string         `json:"username"` // dreambot username / osrs login email
-	Status   string         `json:"status"`
-	Levels   account_levels `json:"levels"`
+	Username string `json:"username"` // dreambot username / osrs login email
+	Status   string `json:"status"`
+	Levels   Levels `json:"levels"`
 }
 
 func (b *bot) startBot() {
@@ -70,10 +45,6 @@ func (b *bot) stopBot() {
 	}
 
 	log.Printf("Client stopped with pid %d", cmd.Process.Pid)
-}
-
-func (b *bot) restartBot() {
-	b.Status = "Restarting"
 }
 
 func (b *bot) _startDreamBotClient() {
