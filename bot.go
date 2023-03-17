@@ -8,7 +8,7 @@ import (
 
 type bot struct {
 	ID       string   `json:"id"`
-	Name     string   `json:"name"`     // dreambot username (email)
+	Email    string   `json:"name"`     // dreambot username (email)
 	Username string   `json:"username"` // osrs username
 	Script   string   `json:"script"`
 	Params   []string `json:"params"`
@@ -17,9 +17,9 @@ type bot struct {
 }
 
 type heartbeat struct {
-	Username string `json:"username"` // dreambot username / osrs login email
-	Status   string `json:"status"`
-	Levels   Levels `json:"levels"`
+	Email  string `json:"username"` // dreambot username / osrs login email
+	Status string `json:"status"`
+	Levels Levels `json:"levels"`
 }
 
 func (b *bot) startBot() {
@@ -38,7 +38,7 @@ func (b *bot) stopBot() {
 
 	b.Status = "Stopped"
 
-	log.Println("Stopping DreamBot client for bot=" + b.Name + " (currently running script: " + b.Script + ")")
+	log.Println("Stopping DreamBot client for bot=" + b.Email + " (currently running script: " + b.Script + ")")
 	cmd := exec.Command("taskkill", "/F", "/T", "/PID", fmt.Sprint(b.PID))
 	if err := cmd.Start(); err != nil {
 		log.Fatal(err)
@@ -48,11 +48,11 @@ func (b *bot) stopBot() {
 }
 
 func (b *bot) _startDreamBotClient() {
-	log.Println("Starting DreamBot client for Bot: " + b.Name + " with script: " + b.Script + "")
+	log.Println("Starting DreamBot client for Bot: " + b.Email + " with script: " + b.Script + "")
 
 	client_path := "C:\\Users\\Administrator\\DreamBot\\BotData\\client.jar"
 
-	var clientParams = []string{"-jar", client_path, "-account", b.Name, "-script", b.Script, "-world", "f2p", "-covert", "-fresh"}
+	var clientParams = []string{"-jar", client_path, "-account", b.Email, "-script", b.Script, "-world", "f2p", "-covert", "-fresh"}
 
 	// chech for bot/script specific params
 	if b.Params != nil {

@@ -17,28 +17,28 @@ type Account struct {
 }
 
 type Levels struct {
-	Attack      int `json:"attack"`
-	Strength    int `json:"strength"`
-	Defence     int `json:"defence"`
-	Ranged      int `json:"ranged"`
-	Magic       int `json:"magic"`
-	Prayer      int `json:"prayer"`
-	Runecraft   int `json:"runecraft"`
-	Hitpoints   int `json:"hitpoints"`
-	Agility     int `json:"agility"`
-	Herblore    int `json:"herblore"`
-	Thieving    int `json:"thieving"`
-	Crafting    int `json:"crafting"`
-	Fletching   int `json:"fletching"`
-	Slayer      int `json:"slayer"`
-	Hunter      int `json:"hunter"`
-	Mining      int `json:"mining"`
-	Smithing    int `json:"smithing"`
-	Fishing     int `json:"fishing"`
-	Cooking     int `json:"cooking"`
-	Firemaking  int `json:"firemaking"`
-	Woodcutting int `json:"woodcutting"`
-	Farming     int `json:"farming"`
+	Attack       int `json:"attack"`
+	Strength     int `json:"strength"`
+	Defence      int `json:"defence"`
+	Ranged       int `json:"ranged"`
+	Magic        int `json:"magic"`
+	Prayer       int `json:"prayer"`
+	Runecrafting int `json:"runecrafting"`
+	Hitpoints    int `json:"hitpoints"`
+	Agility      int `json:"agility"`
+	Herblore     int `json:"herblore"`
+	Thieving     int `json:"thieving"`
+	Crafting     int `json:"crafting"`
+	Fletching    int `json:"fletching"`
+	Slayer       int `json:"slayer"`
+	Hunter       int `json:"hunter"`
+	Mining       int `json:"mining"`
+	Smithing     int `json:"smithing"`
+	Fishing      int `json:"fishing"`
+	Cooking      int `json:"cooking"`
+	Firemaking   int `json:"firemaking"`
+	Woodcutting  int `json:"woodcutting"`
+	Farming      int `json:"farming"`
 }
 
 type database struct {
@@ -111,17 +111,19 @@ func (d *database) getAccount(id int) (Account, error) {
 	return account, nil
 }
 
-func (d *database) getAccountByUsername(username string) (Account, error) {
+func (d *database) getAccountByEmail(email string) (Account, error) {
 	db := d.db
 	var account Account
 
-	stmtOut, err := db.Prepare("SELECT * FROM accounts WHERE username = ?")
+	fmt.Printf("SELECT * FROM accounts WHERE email = %s", email)
+
+	stmtOut, err := db.Prepare("SELECT * FROM accounts WHERE email = ?")
 	if err != nil {
-		panic(err.Error())
+		log.Fatalf("Error: %s", err.Error())
 	}
 	defer stmtOut.Close()
 
-	row := stmtOut.QueryRow(username)
+	row := stmtOut.QueryRow(email)
 	err = row.Scan(&account.ID, &account.Username, &account.Email, &account.Password, &account.Status)
 	if err != nil {
 		log.Fatal(err)
@@ -143,7 +145,7 @@ func (d *database) getLevelsForAccount(id int) (Levels, error) {
 
 	lvls := Levels{}
 	for rows.Next() {
-		if err := rows.Scan(&lvls.Attack, &lvls.Strength, &lvls.Defence, &lvls.Ranged, &lvls.Magic, &lvls.Prayer, &lvls.Runecraft, &lvls.Hitpoints, &lvls.Agility, &lvls.Herblore, &lvls.Thieving, &lvls.Crafting, &lvls.Fletching, &lvls.Slayer, &lvls.Hunter, &lvls.Mining, &lvls.Smithing, &lvls.Fishing, &lvls.Cooking, &lvls.Firemaking, &lvls.Woodcutting, &lvls.Farming); err != nil {
+		if err := rows.Scan(&lvls.Attack, &lvls.Strength, &lvls.Defence, &lvls.Ranged, &lvls.Magic, &lvls.Prayer, &lvls.Runecrafting, &lvls.Hitpoints, &lvls.Agility, &lvls.Herblore, &lvls.Thieving, &lvls.Crafting, &lvls.Fletching, &lvls.Slayer, &lvls.Hunter, &lvls.Mining, &lvls.Smithing, &lvls.Fishing, &lvls.Cooking, &lvls.Firemaking, &lvls.Woodcutting, &lvls.Farming); err != nil {
 			log.Fatal(err)
 			return Levels{}, err
 		}
@@ -176,10 +178,6 @@ func (d *database) updateLevelsForAccount(acc Account, lvls Levels) error {
 
 	for i, column := range columns {
 		if i == 0 {
-			continue
-		}
-
-		if i == 1 {
 			columnsString += column
 			valuesString += "?"
 			updateString += column + " = ?"
@@ -192,7 +190,11 @@ func (d *database) updateLevelsForAccount(acc Account, lvls Levels) error {
 	query = fmt.Sprintf(query, columnsString, valuesString, updateString)
 	// fmt.Println(query)
 
-	err = d.prepareExecute(query, acc.ID, lvls.Attack, lvls.Strength, lvls.Defence, lvls.Ranged, lvls.Magic, lvls.Prayer, lvls.Runecraft, lvls.Hitpoints, lvls.Agility, lvls.Herblore, lvls.Thieving, lvls.Crafting, lvls.Fletching, lvls.Slayer, lvls.Hunter, lvls.Mining, lvls.Smithing, lvls.Fishing, lvls.Cooking, lvls.Firemaking, lvls.Woodcutting, lvls.Farming)
+	values := []interface{}{}
+	values = append(values, acc.ID, lvls.Attack, lvls.Strength, lvls.Defence, lvls.Ranged, lvls.Magic, lvls.Prayer, lvls.Runecrafting, lvls.Hitpoints, lvls.Agility, lvls.Herblore, lvls.Thieving, lvls.Crafting, lvls.Fletching, lvls.Slayer, lvls.Hunter, lvls.Mining, lvls.Smithing, lvls.Fishing, lvls.Cooking, lvls.Firemaking, lvls.Woodcutting, lvls.Farming)
+	values = append(values, acc.ID, lvls.Attack, lvls.Strength, lvls.Defence, lvls.Ranged, lvls.Magic, lvls.Prayer, lvls.Runecrafting, lvls.Hitpoints, lvls.Agility, lvls.Herblore, lvls.Thieving, lvls.Crafting, lvls.Fletching, lvls.Slayer, lvls.Hunter, lvls.Mining, lvls.Smithing, lvls.Fishing, lvls.Cooking, lvls.Firemaking, lvls.Woodcutting, lvls.Farming)
+
+	err = d.prepareExecute(query, values...)
 	if err != nil {
 		log.Fatal(err)
 		return err

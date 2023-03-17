@@ -123,41 +123,32 @@ func handleHeartbeat(c *gin.Context) {
 
 	// check if bot is known
 	for i, b := range bots {
-		if b.Name == hb.Username {
+		if b.Email == hb.Email {
 			bots[i].Status = hb.Status
 
 			hb_changed := false
-			if latestHeartbeats[hb.Username].Status != hb.Status {
+			if latestHeartbeats[hb.Email].Status != hb.Status {
 				hb_changed = true
 			}
 
-			leveled_up := false
-			if latestHeartbeats[hb.Username].Levels != hb.Levels {
-				leveled_up = true
-			}
-
-			latestHeartbeats[hb.Username] = hb
+			latestHeartbeats[hb.Email] = hb
 
 			if hb_changed {
-				fmt.Println("Bot " + hb.Username + " status has changed to: " + hb.Status)
+				fmt.Println("Bot " + hb.Email + " status has changed to: " + hb.Status)
 			}
 
-			if leveled_up {
-				fmt.Println("Bot " + hb.Username + " leveled up!")
+			account, err := db.getAccountByEmail(hb.Email)
+			if err != nil {
+				fmt.Println("Error getting account for username: " + hb.Email)
+				fmt.Println(err)
+				return
+			}
 
-				account, err := db.getAccountByUsername(hb.Username)
-				if err != nil {
-					fmt.Println("Error getting account for username: " + hb.Username)
-					fmt.Println(err)
-					return
-				}
-
-				err = db.updateLevelsForAccount(account, hb.Levels)
-				if err != nil {
-					fmt.Println("Error updating levels for account: " + account.Username)
-					fmt.Println(err)
-					return
-				}
+			err = db.updateLevelsForAccount(account, hb.Levels)
+			if err != nil {
+				fmt.Println("Error updating levels for account: " + account.Username)
+				fmt.Println(err)
+				return
 			}
 
 			c.IndentedJSON(http.StatusOK, gin.H{"message": "heartbeat received"})
@@ -166,8 +157,8 @@ func handleHeartbeat(c *gin.Context) {
 	}
 
 	// bot is not known, add it to the list of known bots
-	fmt.Println("Heartbeat received from unknown bot with username: " + hb.Username)
-	bots = append(bots, bot{Name: hb.Username, Status: hb.Status})
+	fmt.Println("Heartbeat received from unknown bot with username: " + hb.Email)
+	bots = append(bots, bot{Email: hb.Email, Status: hb.Status})
 
 	fmt.Println("Levels: " + fmt.Sprint(hb.Levels) + "\n")
 }
