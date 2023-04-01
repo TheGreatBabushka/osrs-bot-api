@@ -25,6 +25,7 @@ type Server struct {
 func (s *Server) Start() {
 	// initialize database
 	s.DB = &d.Database{Driver: initDatabase()}
+	s.LatestHeartbeats = make(map[string]b.Heartbeat)
 
 	go s.run()
 }

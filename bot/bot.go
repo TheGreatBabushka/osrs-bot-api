@@ -23,6 +23,7 @@ type Heartbeat struct {
 	Status   string    `json:"status"`   // current task status description
 	Username string    `json:"username"` // osrs username
 	Levels   db.Levels `json:"levels"`
+	PID      int       `json:"pid"`
 }
 
 func (b *Bot) Start() {
