@@ -20,7 +20,7 @@ func Start(s *s.Server) {
 	router := gin.Default()
 
 	router.GET("/bots", getBots)
-	router.PUT("/bots", putBots)
+	router.PUT("/bots", startBot)
 	router.GET("/bots/:id", getBotByID)
 	router.DELETE("/bots/:id", deleteBot)
 
@@ -38,7 +38,7 @@ func getBots(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, server.Bots)
 }
 
-func putBots(c *gin.Context) {
+func startBot(c *gin.Context) {
 	var newBot b.Bot
 	if err := c.BindJSON(&newBot); err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
