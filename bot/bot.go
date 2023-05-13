@@ -3,7 +3,6 @@ package bot
 import (
 	"fmt"
 	"log"
-	"os"
 	"os/exec"
 )
 
@@ -43,12 +42,23 @@ func (b *Bot) Stop() {
 }
 
 func (b *Bot) IsRunning() bool {
-	proc, err := os.FindProcess(b.PID)
+	// TODO - this seems to be broken, use a different method
+
+	command := "tasklist /FI \"PID eq " + fmt.Sprint(b.PID) + "\""
+	cmd := exec.Command("cmd", "/C", command)
+	fmt.Printf("Running command: %s\n", command)
+
+	out, err := cmd.Output()
 	if err != nil {
-		log.Fatal(err)
+		fmt.Print(err, "\n")
+		return false
 	}
 
-	if proc == nil {
+	if string(out) == "" {
+		return false
+	}
+
+	if b.PID == 0 {
 		return false
 	}
 

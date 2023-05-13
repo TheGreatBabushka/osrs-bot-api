@@ -139,9 +139,12 @@ func (s *Server) handleKnownHeartbeat(hb Heartbeat, bot b.Bot) error {
 		if b.Email == hb.Email {
 			fmt.Printf("Updating activity based on heartbeat for account: %s with script: %s\n", account.Username, b.Script+" "+fmt.Sprint(b.Params))
 			s.DB.UpdateActivity(account.ID, b.Script+" "+fmt.Sprint(b.Params), b.PID)
-			break
+			return nil
 		}
 	}
+
+	fmt.Println("Bot not found in database: " + hb.Email)
+	s.DB.UpdateActivity(account.ID, "Unknown (heartbeat)", hb.PID)
 
 	return nil
 }
