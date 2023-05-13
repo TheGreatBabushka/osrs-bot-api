@@ -43,6 +43,12 @@ type Levels struct {
 	Farming      int `json:"farming"`
 }
 
+type Activity struct {
+	AccountID int    `json:"account_id"`
+	Command   string `json:"command"`
+	StartedAt string `json:"started_at"`
+}
+
 type Database struct {
 	Driver *sql.DB
 }
