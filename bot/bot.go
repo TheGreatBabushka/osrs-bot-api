@@ -3,9 +3,8 @@ package bot
 import (
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
-
-	"bot-api/db"
 )
 
 type Bot struct {
@@ -16,14 +15,6 @@ type Bot struct {
 	Params   []string `json:"params"`
 	Status   string   `json:"status"`
 	PID      int      `json:"pid"`
-}
-
-type Heartbeat struct {
-	Email    string    `json:"email"`    // dreambot username / osrs login email
-	Status   string    `json:"status"`   // current task status description
-	Username string    `json:"username"` // osrs username
-	Levels   db.Levels `json:"levels"`
-	PID      int       `json:"pid"`
 }
 
 func (b *Bot) Start() {
@@ -49,6 +40,19 @@ func (b *Bot) Stop() {
 	}
 
 	log.Printf("Client stopped with pid %d", cmd.Process.Pid)
+}
+
+func (b *Bot) IsRunning() bool {
+	proc, err := os.FindProcess(b.PID)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if proc == nil {
+		return false
+	}
+
+	return true
 }
 
 func (b *Bot) startDreamBotClient() {

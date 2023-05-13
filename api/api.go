@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -31,13 +30,24 @@ func Start(s *s.Server) {
 
 	router.GET("/levels/:id", getLevelsByID)
 
+	server.Start()
+
+	// needs to be the last line in the function
 	router.Run("192.168.1.156:8080")
 }
 
+// return info on all bots currently running on the server
 func getBots(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, server.Bots)
+	bots, err := server.DB.GetActiveBots()
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, bots)
 }
 
+// starts a new dreambot client with the given parameters
 func startBot(c *gin.Context) {
 	var newBot b.Bot
 	if err := c.BindJSON(&newBot); err != nil {
@@ -45,109 +55,85 @@ func startBot(c *gin.Context) {
 		return
 	}
 
-	// ensure ID is not empty and is unique
 	if newBot.ID == "" {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "ID is empty"})
 		return
 	}
 
-	for _, bot := range server.Bots {
-		if bot.ID == newBot.ID {
-			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "ID is not unique"})
+	acc, err := server.DB.GetAccount(newBot.ID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Account not found for ID: " + newBot.ID})
+			return
+		}
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	bots, err := server.DB.GetActiveBots()
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	for _, b := range bots {
+		if b.ID == newBot.ID {
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "bot with given ID is already running"})
 			return
 		}
 	}
 
+	newBot.Email = acc.Email
+
 	newBot.Status = "Stopped"
 	newBot.Start()
 
-	server.Bots = append(server.Bots, newBot)
+	server.DB.UpdateActivity(acc.ID, newBot.Script+" "+fmt.Sprint(newBot.Params), newBot.PID)
+
 	c.IndentedJSON(http.StatusCreated, newBot)
 }
 
+// return info on a specific bot
 func getBotByID(c *gin.Context) {
 	id := c.Param("id")
 
-	for _, b := range server.Bots {
+	bots, err := server.DB.GetActiveBots()
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	for _, b := range bots {
 		if b.ID == id {
 			c.IndentedJSON(http.StatusOK, b)
 			return
 		}
 	}
+
 	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "album not found"})
 }
 
 func deleteBot(c *gin.Context) {
 	id := c.Param("id")
 
-	for i, b := range server.Bots {
-		if b.ID == id {
-			b.Stop()
-			server.Bots = append(server.Bots[:i], server.Bots[i+1:]...)
-			c.IndentedJSON(http.StatusOK, gin.H{"message": "bot deleted"})
-			return
-		}
+	if stopped := server.StopBot(id); stopped {
+		c.IndentedJSON(http.StatusOK, gin.H{"message": "bot stopped"})
+		return
 	}
+
 	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "bot not found"})
 }
 
 func handleHeartbeat(c *gin.Context) {
-
 	// parse heartbeat
-	var hb b.Heartbeat
+	var hb s.Heartbeat
 	if err := c.BindJSON(&hb); err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		fmt.Printf("Error parsing heartbeat: %s\n", c.Request.Body)
 		return
 	}
 
-	// TODO - move logic to server
-	// check if bot is known
-	for i, b := range server.Bots {
-		if b.Email == hb.Email {
-			server.Bots[i].Status = hb.Status
-
-			hb_changed := false
-			if server.LatestHeartbeats[hb.Email].Status != hb.Status {
-				hb_changed = true
-			}
-
-			server.LatestHeartbeats[hb.Email] = hb
-
-			if hb_changed {
-				fmt.Println("Bot " + hb.Email + " status has changed to: " + hb.Status)
-			}
-
-			account, err := server.DB.GetAccountByEmail(hb.Email)
-			if err != nil {
-				if err == sql.ErrNoRows {
-					fmt.Println("Account not found for username: " + hb.Email)
-
-				}
-				fmt.Println("Error getting account for username: " + hb.Email)
-				fmt.Println(err)
-				return
-			}
-
-			err = server.DB.UpdateLevelsForAccount(account, hb.Levels)
-			if err != nil {
-				fmt.Println("Error updating levels for account: " + account.Username)
-				fmt.Println(err)
-				return
-			}
-
-			c.IndentedJSON(http.StatusOK, gin.H{"message": "heartbeat received"})
-			return
-		}
-	}
-
-	// bot is not known, add it to the list of known bots
-	fmt.Println("Heartbeat received from unknown bot with username: " + hb.Email)
-	server.Bots = append(server.Bots, b.Bot{Email: hb.Email, Status: hb.Status})
-	fmt.Println("Levels: " + fmt.Sprint(hb.Levels) + "\n")
-
-	fmt.Println("Adding bot to database: " + hb.Email)
-	server.DB.InsertAccount(hb.Email, hb.Username)
+	server.HandleHeartbeat(hb)
 }
 
 func getAccounts(c *gin.Context) {
@@ -161,15 +147,13 @@ func getAccounts(c *gin.Context) {
 }
 
 func getAccountByID(c *gin.Context) {
-
 	id := c.Param("id")
-	id_int, err := strconv.Atoi(id)
-	if err != nil {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if id == "" {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "ID is empty"})
 		return
 	}
 
-	a, err := server.DB.GetAccount(id_int)
+	a, err := server.DB.GetAccount(id)
 	if err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -179,15 +163,13 @@ func getAccountByID(c *gin.Context) {
 }
 
 func getLevelsByID(c *gin.Context) {
-
 	id := c.Param("id")
-	id_int, err := strconv.Atoi(id)
-	if err != nil {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if id == "" {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "ID is empty"})
 		return
 	}
 
-	a, err := server.DB.GetAccount(id_int)
+	a, err := server.DB.GetAccount(id)
 	if err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

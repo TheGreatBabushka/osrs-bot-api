@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 
+	b "bot-api/bot"
+
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -43,10 +45,13 @@ type Levels struct {
 	Farming      int `json:"farming"`
 }
 
+// Represents a row in the activity table - used to track what the bot is/was doing
 type Activity struct {
 	AccountID int    `json:"account_id"`
 	Command   string `json:"command"`
 	StartedAt string `json:"started_at"`
+	StoppedAt string `json:"stopped_at"`
+	PID       int    `json:"pid"`
 }
 
 type Database struct {
@@ -99,7 +104,7 @@ func (d *Database) GetAccounts() ([]Account, error) {
 	return accounts, nil
 }
 
-func (d *Database) GetAccount(id int) (Account, error) {
+func (d *Database) GetAccount(id string) (Account, error) {
 	db := d.Driver
 	var account Account
 
@@ -117,6 +122,46 @@ func (d *Database) GetAccount(id int) (Account, error) {
 	}
 
 	return account, nil
+}
+
+func (d *Database) GetActiveBots() ([]b.Bot, error) {
+	db := d.Driver
+
+	// select the account ids from activity table join with the accounts table where stopped_at is null or an earlier time than started_at
+	q := "SELECT a.id, a.email, a.username, a.status, ac.pid FROM activity AS ac INNER JOIN accounts AS a ON ac.account_id = a.id WHERE ac.stopped_at IS NULL OR ac.stopped_at < ac.started_at"
+	rows, err := db.Query(q)
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	bots := []b.Bot{}
+	for rows.Next() {
+		var id string
+		var email string
+		var username string
+		var status string
+		var pid int
+
+		if err := rows.Scan(&id, &email, &username, &status, &pid); err != nil {
+			log.Fatal(err)
+		}
+
+		bots = append(bots, b.Bot{
+			ID:       id,
+			Email:    email,
+			Username: username,
+			Status:   status,
+			PID:      pid,
+		})
+	}
+
+	return bots, nil
+}
+
+func InsertBot(bot b.Bot) {
+	// TODO - insert bot into database
 }
 
 func (d *Database) InsertAccount(email string, username string) {
@@ -245,6 +290,71 @@ func (d *Database) LevelsColumns() ([]string, error) {
 	}
 
 	return columns, nil
+}
+
+func (d *Database) InsertActivity(id int, command string, pid int) error {
+	db := d.Driver
+
+	stmtOut, err := db.Prepare("INSERT INTO activity (account_id, command, started_at, pid) VALUES (?, ?, NOW(), ?)")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = stmtOut.Exec(id, command, pid)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return nil
+}
+
+func (d *Database) UpdateActivity(id int, command string, pid int) error {
+	db := d.Driver
+
+	// check if there is already an activity for this account
+	rows, err := db.Query("SELECT * FROM activity WHERE account_id = ?", id)
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+
+	// if there is no activity for this account, insert it
+	if !rows.Next() {
+		err = d.InsertActivity(id, command, pid)
+		if err != nil {
+			log.Fatal(err)
+			return err
+		}
+		return nil
+	}
+
+	stmtOut, err := db.Prepare("UPDATE activity SET command = ?, started_at = NOW(), stopped_at = NULL, pid = ? WHERE account_id = ?")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = stmtOut.Exec(command, pid, id)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return nil
+}
+
+func (d *Database) UpdateBotStoppedAt(id int) error {
+	db := d.Driver
+
+	stmtOut, err := db.Prepare("UPDATE activity SET stopped_at = NOW() WHERE account_id = ?")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = stmtOut.Exec(id)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return nil
 }
 
 func (d *Database) Query(query string) (*sql.Rows, error) {

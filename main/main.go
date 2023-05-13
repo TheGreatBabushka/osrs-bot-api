@@ -10,7 +10,5 @@ import (
 
 func main() {
 	server := s.Server{}
-	server.Start()
-
 	api.Start(&server)
 }
