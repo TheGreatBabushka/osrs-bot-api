@@ -115,9 +115,9 @@ func (d *Database) GetAccount(id string) (Account, error) {
 	defer stmtOut.Close()
 
 	row := stmtOut.QueryRow(id)
-	err = row.Scan(&account.ID, &account.Username, &account.Email, &account.Password, &account.Status)
+	err = row.Scan(&account.ID, &account.Username, &account.Email, &account.Status)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 		return account, err
 	}
 
@@ -131,7 +131,7 @@ func (d *Database) GetActiveBots() ([]b.Bot, error) {
 	q := "SELECT a.id, a.email, a.username, a.status, ac.pid FROM activity AS ac INNER JOIN accounts AS a ON ac.account_id = a.id WHERE ac.stopped_at IS NULL OR ac.stopped_at < ac.started_at"
 	rows, err := db.Query(q)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
 		return nil, err
 	}
 	defer rows.Close()

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"strings"
 )
 
 type Bot struct {
@@ -42,23 +43,19 @@ func (b *Bot) Stop() {
 }
 
 func (b *Bot) IsRunning() bool {
-	// TODO - this seems to be broken, use a different method
+	if b.PID == 0 {
+		return false
+	}
 
-	command := "tasklist /FI \"PID eq " + fmt.Sprint(b.PID) + "\""
-	cmd := exec.Command("cmd", "/C", command)
-	fmt.Printf("Running command: %s\n", command)
-
+	cmd := exec.Command("cmd", "/C", "tasklist", "/FI", fmt.Sprintf("PID eq %d", b.PID))
 	out, err := cmd.Output()
 	if err != nil {
 		fmt.Print(err, "\n")
 		return false
 	}
 
-	if string(out) == "" {
-		return false
-	}
-
-	if b.PID == 0 {
+	output := string(out)
+	if output == "" || strings.Contains(output, "No tasks are running which match the specified criteria") {
 		return false
 	}
 
