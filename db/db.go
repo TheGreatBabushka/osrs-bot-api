@@ -160,8 +160,108 @@ func (d *Database) GetActiveBots() ([]b.Bot, error) {
 	return bots, nil
 }
 
-func InsertBot(bot b.Bot) {
-	// TODO - insert bot into database
+func (d *Database) GetInactiveBots() ([]b.Bot, error) {
+	db := d.Driver
+
+	// select the account ids from activity table join with the accounts table where stopped_at is null or an earlier time than started_at
+	q := "SELECT a.id, a.email, a.username FROM activity AS ac INNER JOIN accounts AS a ON ac.account_id = a.id WHERE ac.stopped_at IS NOT NULL AND ac.stopped_at > ac.started_at"
+	rows, err := db.Query(q)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	bots := []b.Bot{}
+	for rows.Next() {
+		var id string
+		var email string
+		var username string
+
+		if err := rows.Scan(&id, &email, &username); err != nil {
+			log.Fatal(err)
+		}
+
+		bots = append(bots, b.Bot{
+			ID:       id,
+			Email:    email,
+			Username: username,
+			Script:   "",
+			Params:   []string{},
+		})
+	}
+
+	return bots, nil
+}
+
+func (d *Database) GetBotActivity() ([]Activity, error) {
+	db := d.Driver
+
+	// select all rows from activity table
+	q := "SELECT * FROM activity"
+	rows, err := db.Query(q)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	activity := []Activity{}
+	for rows.Next() {
+		var accountID int
+		var command string
+		var startedAt string
+		var stoppedAt string
+		var pid int
+
+		if err := rows.Scan(&accountID, &command, &startedAt, &stoppedAt, &pid); err != nil {
+			log.Fatal(err)
+		}
+
+		activity = append(activity, Activity{
+			AccountID: accountID,
+			Command:   command,
+			StartedAt: startedAt,
+			StoppedAt: stoppedAt,
+			PID:       pid,
+		})
+	}
+
+	return activity, nil
+}
+
+func (d *Database) GetBotActivityByID(id string) ([]Activity, error) {
+	db := d.Driver
+
+	// select all rows from activity table
+	q := "SELECT * FROM activity WHERE account_id = ?"
+	rows, err := db.Query(q, id)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	activity := []Activity{}
+	for rows.Next() {
+		var accountID int
+		var command string
+		var startedAt string
+		var stoppedAt string
+		var pid int
+
+		if err := rows.Scan(&accountID, &command, &startedAt, &stoppedAt, &pid); err != nil {
+			log.Fatal(err)
+		}
+
+		activity = append(activity, Activity{
+			AccountID: accountID,
+			Command:   command,
+			StartedAt: startedAt,
+			StoppedAt: stoppedAt,
+			PID:       pid,
+		})
+	}
+
+	return activity, nil
 }
 
 func (d *Database) InsertAccount(email string, username string) {
@@ -217,7 +317,8 @@ func (d *Database) GetLevelsForAccount(id int) (Levels, error) {
 
 	lvls := Levels{}
 	for rows.Next() {
-		if err := rows.Scan(&lvls.Attack, &lvls.Strength, &lvls.Defence, &lvls.Ranged, &lvls.Magic, &lvls.Prayer, &lvls.Runecrafting, &lvls.Hitpoints, &lvls.Agility, &lvls.Herblore, &lvls.Thieving, &lvls.Crafting, &lvls.Fletching, &lvls.Slayer, &lvls.Hunter, &lvls.Mining, &lvls.Smithing, &lvls.Fishing, &lvls.Cooking, &lvls.Firemaking, &lvls.Woodcutting, &lvls.Farming); err != nil {
+		id := 0
+		if err := rows.Scan(&id, &lvls.Attack, &lvls.Strength, &lvls.Defence, &lvls.Ranged, &lvls.Magic, &lvls.Prayer, &lvls.Runecrafting, &lvls.Hitpoints, &lvls.Agility, &lvls.Herblore, &lvls.Thieving, &lvls.Crafting, &lvls.Fletching, &lvls.Slayer, &lvls.Hunter, &lvls.Mining, &lvls.Smithing, &lvls.Fishing, &lvls.Cooking, &lvls.Firemaking, &lvls.Woodcutting, &lvls.Farming); err != nil {
 			log.Fatal(err)
 			return Levels{}, err
 		}

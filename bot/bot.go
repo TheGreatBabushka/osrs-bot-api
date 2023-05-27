@@ -9,12 +9,12 @@ import (
 
 type Bot struct {
 	ID       string   `json:"id"`
-	Email    string   `json:"name"`     // dreambot username (email)
+	Email    string   `json:"email"`    // dreambot username (email)
 	Username string   `json:"username"` // osrs username
 	Script   string   `json:"script"`
 	Params   []string `json:"params"`
 	Status   string   `json:"status"`
-	PID      int      `json:"pid"`
+	PID      int      `json:"pid"` // process id of the dreambot client, 0 if not running. set by the server when bot is started
 }
 
 func (b *Bot) Start() {
@@ -70,8 +70,14 @@ func (b *Bot) startDreamBotClient() {
 	var clientParams = []string{"-jar", client_path, "-account", b.Email, "-script", b.Script, "-world", "f2p", "-covert", "-fresh"}
 
 	// chech for bot/script specific params
-	if b.Params != nil {
+	if b.Params != nil && len(b.Params) > 0 {
 		log.Println("Found bot specific params: " + fmt.Sprint(b.Params))
+
+		// if params doesnt start with -params, insert it at the beginning
+		if !strings.HasPrefix(b.Params[0], "-params") {
+			clientParams = append(clientParams, "-params")
+		}
+
 		clientParams = append(clientParams, b.Params...)
 	}
 

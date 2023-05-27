@@ -13,13 +13,25 @@ import (
 
 var server s.Server
 
+type StartBotCommand struct {
+	ID     string   `json:"id"`
+	Script string   `json:"script"`
+	Params []string `json:"params"`
+}
+
 func Start(s *s.Server) {
 	server = *s
 
 	router := gin.Default()
 
-	router.GET("/bots", getBots)
-	router.PUT("/bots", startBot)
+	router.GET("/bots/active", getActiveBots)
+	router.GET("/bots/inactive", getInactiveBots)
+
+	router.GET("/bots/activity", getBotActivity)
+	router.GET("/bots/activity/:id", getBotActivityByID)
+	// router.GET("/bots/heartbeat", getBotHeartbeat)
+
+	router.POST("/bots", startBot)
 	router.GET("/bots/:id", getBotByID)
 	router.DELETE("/bots/:id", deleteBot)
 
@@ -37,8 +49,18 @@ func Start(s *s.Server) {
 }
 
 // return info on all bots currently running on the server
-func getBots(c *gin.Context) {
+func getActiveBots(c *gin.Context) {
 	bots, err := server.DB.GetActiveBots()
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, bots)
+}
+
+func getInactiveBots(c *gin.Context) {
+	bots, err := server.DB.GetInactiveBots()
 	if err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -49,21 +71,21 @@ func getBots(c *gin.Context) {
 
 // starts a new dreambot client with the given parameters
 func startBot(c *gin.Context) {
-	var newBot b.Bot
-	if err := c.BindJSON(&newBot); err != nil {
+	var startCmd StartBotCommand
+	if err := c.BindJSON(&startCmd); err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if newBot.ID == "" {
+	if startCmd.ID == "" {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "ID is empty"})
 		return
 	}
 
-	acc, err := server.DB.GetAccount(newBot.ID)
+	acc, err := server.DB.GetAccount(startCmd.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Account not found for ID: " + newBot.ID})
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Account not found for ID: " + startCmd.ID})
 			return
 		}
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -77,20 +99,24 @@ func startBot(c *gin.Context) {
 	}
 
 	for _, b := range bots {
-		if b.ID == newBot.ID {
+		if b.ID == startCmd.ID {
 			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "bot with given ID is already running"})
 			return
 		}
 	}
 
+	var newBot b.Bot
+	newBot.ID = fmt.Sprint(acc.ID)
+	newBot.Username = acc.Username
 	newBot.Email = acc.Email
-
 	newBot.Status = "Stopped"
+	newBot.Script = startCmd.Script
+	newBot.Params = startCmd.Params
 	newBot.Start()
 
-	server.DB.UpdateActivity(acc.ID, newBot.Script+" "+fmt.Sprint(newBot.Params), newBot.PID)
+	server.DB.UpdateActivity(acc.ID, startCmd.Script+" "+fmt.Sprint(startCmd.Params), newBot.PID)
 
-	c.IndentedJSON(http.StatusCreated, newBot)
+	c.IndentedJSON(http.StatusCreated, startCmd)
 }
 
 // return info on a specific bot
@@ -183,3 +209,39 @@ func getLevelsByID(c *gin.Context) {
 
 	c.IndentedJSON(http.StatusOK, levels)
 }
+
+func getBotActivity(c *gin.Context) {
+	activity, err := server.DB.GetBotActivity()
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, activity)
+}
+
+func getBotActivityByID(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "ID is empty"})
+		return
+	}
+
+	activity, err := server.DB.GetBotActivityByID(id)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, activity)
+}
+
+// func getBotHeartbeat(c *gin.Context) {
+// 	heartbeats, err := server.DB.GetHeartbeats()
+// 	if err != nil {
+// 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// 		return
+// 	}
+
+// 	c.IndentedJSON(http.StatusOK, heartbeats)
+// }
