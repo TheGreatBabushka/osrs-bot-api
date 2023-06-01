@@ -1,5 +1,6 @@
 FROM golang:1.20 as builder
 
+RUN mkdir /api
 COPY . /api
 
 WORKDIR /api/
