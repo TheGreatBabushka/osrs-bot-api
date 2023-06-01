@@ -1,11 +1,12 @@
 FROM golang:1.20 as builder
 
 RUN mkdir /api
-COPY . /api
+COPY ./src /api
 
-WORKDIR /api/
+WORKDIR /api
 RUN go mod tidy
 RUN go mod download
+RUN ls
 RUN CGO_ENABLED=0 GOOS=linux go build .
 
 FROM alpine
