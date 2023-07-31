@@ -45,7 +45,7 @@ func Start(s *s.Server) {
 	server.Start()
 
 	// needs to be the last line in the function
-	router.Run("192.168.1.156:8080")
+	router.Run("localhost:8080")
 }
 
 // return info on all bots currently running on the server
