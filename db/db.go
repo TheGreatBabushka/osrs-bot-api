@@ -82,7 +82,7 @@ func (d *Database) GetAccounts() ([]Account, error) {
 		var password string
 		var status string
 
-		if err := rows.Scan(&id, &username, &email, &password, &status); err != nil {
+		if err := rows.Scan(&id, &username, &email, &status); err != nil {
 			log.Fatal(err)
 		}
 		// log.Println(id, username, email, password, status)
@@ -128,7 +128,7 @@ func (d *Database) GetActiveBots() ([]b.Bot, error) {
 	db := d.Driver
 
 	// select the account ids from activity table join with the accounts table where stopped_at is null or an earlier time than started_at
-	q := "SELECT a.id, a.email, a.username, a.status, ac.pid FROM activity AS ac INNER JOIN accounts AS a ON ac.account_id = a.id WHERE ac.stopped_at IS NULL OR ac.stopped_at < ac.started_at"
+	q := "SELECT a.id, a.email, a.username, a.status, ac.pid FROM activity AS ac INNER JOIN accounts AS a ON ac.account_id = a.id WHERE ac.stopped_at IS NULL OR ac.stopped_at <= ac.started_at"
 	rows, err := db.Query(q)
 	if err != nil {
 		fmt.Println(err)
@@ -396,7 +396,7 @@ func (d *Database) LevelsColumns() ([]string, error) {
 func (d *Database) InsertActivity(id int, command string, pid int) error {
 	db := d.Driver
 
-	stmtOut, err := db.Prepare("INSERT INTO activity (account_id, command, started_at, pid) VALUES (?, ?, NOW(), ?)")
+	stmtOut, err := db.Prepare("INSERT INTO activity (account_id, command, started_at, stopped_at, pid) VALUES (?, ?, NOW(), NOW(), ?)")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -429,7 +429,7 @@ func (d *Database) UpdateActivity(id int, command string, pid int) error {
 		return nil
 	}
 
-	stmtOut, err := db.Prepare("UPDATE activity SET command = ?, started_at = NOW(), stopped_at = NULL, pid = ? WHERE account_id = ?")
+	stmtOut, err := db.Prepare("UPDATE activity SET command = ?, started_at = NOW(), stopped_at = NOW(), pid = ? WHERE account_id = ?")
 	if err != nil {
 		log.Fatal(err)
 	}

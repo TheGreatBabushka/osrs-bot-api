@@ -45,6 +45,7 @@ func Start(s *s.Server) {
 	server.Start()
 
 	// needs to be the last line in the function
+	// TODO - research best practice for this
 	router.Run("192.168.1.156:8080")
 }
 
