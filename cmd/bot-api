@@ -5,6 +5,9 @@ import (
 	s "bot-api/server"
 )
 
+// var db d.Database
+// var sql_db *sql.DB
+
 func main() {
 	server := s.Server{}
 	api.Start(&server)
