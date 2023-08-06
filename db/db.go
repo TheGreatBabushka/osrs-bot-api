@@ -15,7 +15,6 @@ type Account struct {
 	ID       int    `json:"id"`
 	Username string `json:"username"`
 	Email    string `json:"email"`
-	Password string `json:"password"`
 	Status   string `json:"status"`
 }
 
@@ -79,19 +78,16 @@ func (d *Database) GetAccounts() ([]Account, error) {
 		var id int
 		var username string
 		var email string
-		var password string
 		var status string
 
 		if err := rows.Scan(&id, &username, &email, &status); err != nil {
 			log.Fatal(err)
 		}
-		// log.Println(id, username, email, password, status)
 
 		accounts = append(accounts, Account{
 			ID:       id,
 			Username: username,
 			Email:    email,
-			Password: password,
 			Status:   status,
 		})
 	}
@@ -267,7 +263,7 @@ func (d *Database) GetBotActivityByID(id string) ([]Activity, error) {
 func (d *Database) InsertAccount(email string, username string) {
 	db := d.Driver
 
-	stmtOut, err := db.Prepare("INSERT INTO accounts (email, username, status, password) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE email = ?, username = ?, status = ?, password = ?")
+	stmtOut, err := db.Prepare("INSERT INTO accounts (email, username, status) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE email = ?, username = ?, status = ?")
 	if err != nil {
 		panic(err.Error())
 	}
