@@ -287,7 +287,7 @@ func (d *Database) GetAccountByEmail(email string) (Account, error) {
 	defer stmtOut.Close()
 
 	row := stmtOut.QueryRow(email)
-	err = row.Scan(&account.ID, &account.Username, &account.Email, &account.Password, &account.Status)
+	err = row.Scan(&account.ID, &account.Username, &account.Email, &account.Status)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			log.Println("No rows found")
