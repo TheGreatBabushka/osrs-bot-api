@@ -37,6 +37,7 @@ func Start(s *s.Server) {
 
 	router.POST("/heartbeat", handleHeartbeat)
 
+	router.POST("/accounts", insertAccount)
 	router.GET("/accounts", getAccounts)
 	router.GET("/accounts/:id", getAccountByID)
 
@@ -46,7 +47,7 @@ func Start(s *s.Server) {
 
 	// needs to be the last line in the function
 	// TODO - research best practice for this
-	router.Run("192.168.1.156:8080")
+	router.Run("192.168.1.171:8080")
 }
 
 // return info on all bots currently running on the server
@@ -161,6 +162,32 @@ func handleHeartbeat(c *gin.Context) {
 	}
 
 	server.HandleHeartbeat(hb)
+}
+
+func insertAccount(c *gin.Context) {
+
+	var account struct {
+		Email    string `json:"email"`
+		Username string `json:"username"`
+		Status   string `json:"status"`
+	}
+
+	if err := c.BindJSON(&account); err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	email := account.Email
+	username := account.Username
+	status := account.Status
+
+	if email == "" || username == "" || status == "" {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "email, username, or status is empty"})
+		return
+	}
+
+	server.DB.InsertAccount(email, username, status)
+	c.IndentedJSON(http.StatusCreated, gin.H{"message": "account inserted"})
 }
 
 func getAccounts(c *gin.Context) {

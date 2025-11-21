@@ -89,7 +89,7 @@ func (s *Server) HandleHeartbeat(hb Heartbeat) error {
 	fmt.Println("Levels: " + fmt.Sprint(hb.Stats) + "\n")
 
 	fmt.Println("Adding bot to database: " + hb.Email)
-	s.DB.InsertAccount(hb.Email, hb.Username)
+	s.DB.InsertAccount(hb.Email, hb.Username, "active")
 
 	return nil
 }

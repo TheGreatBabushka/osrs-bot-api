@@ -260,7 +260,7 @@ func (d *Database) GetBotActivityByID(id string) ([]Activity, error) {
 	return activity, nil
 }
 
-func (d *Database) InsertAccount(email string, username string) {
+func (d *Database) InsertAccount(email string, username string, status string) {
 	db := d.Driver
 
 	stmtOut, err := db.Prepare("INSERT INTO accounts (email, username, status) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE email = ?, username = ?, status = ?")
@@ -268,7 +268,7 @@ func (d *Database) InsertAccount(email string, username string) {
 		panic(err.Error())
 	}
 
-	_, err = stmtOut.Exec(email, username, "active", "password", email, username, "active", "password")
+	_, err = stmtOut.Exec(email, username, status, email, username, status)
 	if err != nil {
 		panic(err.Error())
 	}
