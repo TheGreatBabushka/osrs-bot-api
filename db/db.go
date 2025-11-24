@@ -46,11 +46,11 @@ type Levels struct {
 
 // Represents a row in the activity table - used to track what the bot is/was doing
 type Activity struct {
-	AccountID int    `json:"account_id"`
-	Command   string `json:"command"`
-	StartedAt string `json:"started_at"`
-	StoppedAt string `json:"stopped_at"`
-	PID       int    `json:"pid"`
+	AccountID int     `json:"account_id"`
+	Command   string  `json:"command"`
+	StartedAt string  `json:"started_at"`
+	StoppedAt *string `json:"stopped_at,omitempty"`
+	PID       int     `json:"pid"`
 }
 
 type Database struct {
@@ -83,6 +83,8 @@ func (d *Database) GetAccounts() ([]Account, error) {
 		if err := rows.Scan(&id, &username, &email, &status); err != nil {
 			log.Fatal(err)
 		}
+
+		log.Println("Fetched account: " + email + " (" + username + ") with status: " + status)
 
 		accounts = append(accounts, Account{
 			ID:       id,
@@ -124,7 +126,7 @@ func (d *Database) GetActiveBots() ([]b.Bot, error) {
 	db := d.Driver
 
 	// select the account ids from activity table join with the accounts table where stopped_at is null or an earlier time than started_at
-	q := "SELECT a.id, a.email, a.username, a.status, ac.pid FROM activity AS ac INNER JOIN accounts AS a ON ac.account_id = a.id WHERE ac.stopped_at IS NULL OR ac.stopped_at <= ac.started_at"
+	q := "SELECT a.id, ac.account_id, a.email, a.username, a.status, ac.pid FROM activity AS ac INNER JOIN accounts AS a ON ac.account_id = a.id WHERE ac.stopped_at IS NULL OR ac.stopped_at <= ac.started_at"
 	rows, err := db.Query(q)
 	if err != nil {
 		fmt.Println(err)
@@ -134,18 +136,19 @@ func (d *Database) GetActiveBots() ([]b.Bot, error) {
 
 	bots := []b.Bot{}
 	for rows.Next() {
-		var id string
+		var id int
+		var accountId string
 		var email string
 		var username string
 		var status string
 		var pid int
 
-		if err := rows.Scan(&id, &email, &username, &status, &pid); err != nil {
+		if err := rows.Scan(&id, &accountId, &email, &username, &status, &pid); err != nil {
 			log.Fatal(err)
 		}
 
 		bots = append(bots, b.Bot{
-			ID:       id,
+			ID:       accountId,
 			Email:    email,
 			Username: username,
 			Status:   status,
@@ -203,21 +206,27 @@ func (d *Database) GetBotActivity() ([]Activity, error) {
 
 	activity := []Activity{}
 	for rows.Next() {
+		var id int
 		var accountID int
 		var command string
 		var startedAt string
-		var stoppedAt string
+		var stoppedAt sql.NullString
 		var pid int
 
-		if err := rows.Scan(&accountID, &command, &startedAt, &stoppedAt, &pid); err != nil {
+		if err := rows.Scan(&id, &accountID, &command, &startedAt, &stoppedAt, &pid); err != nil {
 			log.Fatal(err)
+		}
+
+		var stoppedAtPtr *string
+		if stoppedAt.Valid {
+			stoppedAtPtr = &stoppedAt.String
 		}
 
 		activity = append(activity, Activity{
 			AccountID: accountID,
 			Command:   command,
 			StartedAt: startedAt,
-			StoppedAt: stoppedAt,
+			StoppedAt: stoppedAtPtr,
 			PID:       pid,
 		})
 	}
@@ -238,26 +247,49 @@ func (d *Database) GetBotActivityByID(id string) ([]Activity, error) {
 
 	activity := []Activity{}
 	for rows.Next() {
+		var id int
 		var accountID int
 		var command string
 		var startedAt string
-		var stoppedAt string
+		var stoppedAt sql.NullString
 		var pid int
 
-		if err := rows.Scan(&accountID, &command, &startedAt, &stoppedAt, &pid); err != nil {
+		if err := rows.Scan(&id, &accountID, &command, &startedAt, &stoppedAt, &pid); err != nil {
 			log.Fatal(err)
+		}
+
+		var stoppedAtPtr *string
+		if stoppedAt.Valid {
+			stoppedAtPtr = &stoppedAt.String
 		}
 
 		activity = append(activity, Activity{
 			AccountID: accountID,
 			Command:   command,
 			StartedAt: startedAt,
-			StoppedAt: stoppedAt,
+			StoppedAt: stoppedAtPtr,
 			PID:       pid,
 		})
 	}
 
 	return activity, nil
+}
+
+func (d *Database) UpdateAccountStatus(id string, status string) error {
+	db := d.Driver
+
+	stmtOut, err := db.Prepare("UPDATE accounts SET status = ? WHERE id = ?")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	_, err = stmtOut.Exec(status, id)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	fmt.Println("Account Updated")
+	return nil
 }
 
 func (d *Database) InsertAccount(email string, username string, status string) {
@@ -274,6 +306,22 @@ func (d *Database) InsertAccount(email string, username string, status string) {
 	}
 
 	fmt.Println("Account Inserted")
+}
+
+func (d *Database) DeleteAccount(id string) {
+	db := d.Driver
+
+	stmtOut, err := db.Prepare("DELETE FROM accounts WHERE id = ?")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	_, err = stmtOut.Exec(id)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	fmt.Println("Account Deleted")
 }
 
 func (d *Database) GetAccountByEmail(email string) (Account, error) {
@@ -392,7 +440,7 @@ func (d *Database) LevelsColumns() ([]string, error) {
 func (d *Database) InsertActivity(id int, command string, pid int) error {
 	db := d.Driver
 
-	stmtOut, err := db.Prepare("INSERT INTO activity (account_id, command, started_at, stopped_at, pid) VALUES (?, ?, NOW(), NOW(), ?)")
+	stmtOut, err := db.Prepare("INSERT INTO activity (account_id, command, started_at, stopped_at, pid) VALUES (?, ?, NOW(), NULL, ?)")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -408,31 +456,26 @@ func (d *Database) InsertActivity(id int, command string, pid int) error {
 func (d *Database) UpdateActivity(id int, command string, pid int) error {
 	db := d.Driver
 
-	// check if there is already an activity for this account
-	rows, err := db.Query("SELECT * FROM activity WHERE account_id = ?", id)
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-
-	// if there is no activity for this account, insert it
-	if !rows.Next() {
-		err = d.InsertActivity(id, command, pid)
-		if err != nil {
-			log.Fatal(err)
-			return err
-		}
-		return nil
-	}
-
-	stmtOut, err := db.Prepare("UPDATE activity SET command = ?, started_at = NOW(), stopped_at = NOW(), pid = ? WHERE account_id = ?")
+	// Update the latest activity for this account if it exists and is still running (stopped_at is NULL)
+	stmtOut, err := db.Prepare("UPDATE activity SET command = ?, pid = ? WHERE account_id = ? AND stopped_at IS NULL ORDER BY started_at DESC LIMIT 1")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	_, err = stmtOut.Exec(command, pid, id)
+	result, err := stmtOut.Exec(command, pid, id)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	// Check if any row was updated
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// If no active activity exists, insert a new one
+	if rowsAffected == 0 {
+		return d.InsertActivity(id, command, pid)
 	}
 
 	return nil
@@ -441,7 +484,7 @@ func (d *Database) UpdateActivity(id int, command string, pid int) error {
 func (d *Database) UpdateBotStoppedAt(id int) error {
 	db := d.Driver
 
-	stmtOut, err := db.Prepare("UPDATE activity SET stopped_at = NOW() WHERE account_id = ?")
+	stmtOut, err := db.Prepare("UPDATE activity SET stopped_at = NOW() WHERE account_id = ? ORDER BY started_at DESC LIMIT 1")
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -9,11 +9,12 @@ import (
 	"time"
 )
 
-var bots []b.Bot
-
 type Server struct {
 	// interface to the database
 	DB *db.Database
+
+	// list of bots being monitored by the server
+	bots []b.Bot
 
 	// map for a bot's username to the last received heartbeat for that bot
 	LatestHeartbeats map[string]Heartbeat
@@ -52,9 +53,9 @@ func (s *Server) IsRunning() bool {
 // Stops a bot and remove it the server's list of bots
 func (s *Server) StopBot(id string) bool {
 	// TODO - remove bot from database
-	for i, b := range bots {
+	for i, b := range s.bots {
 		if b.ID == id {
-			bots = append(bots[:i], bots[i+1:]...)
+			s.bots = append(s.bots[:i], s.bots[i+1:]...)
 
 			b.Stop()
 			return true
@@ -65,13 +66,13 @@ func (s *Server) StopBot(id string) bool {
 }
 
 func (s *Server) GetBots() []b.Bot {
-	return bots
+	return s.bots
 }
 
 func (s *Server) HandleHeartbeat(hb Heartbeat) error {
 	// TODO - move logic to server
 	// check if bot is known
-	for _, b := range bots {
+	for _, b := range s.bots {
 		if b.Email == hb.Email {
 			if err := s.handleKnownHeartbeat(hb, b); err != nil {
 				fmt.Println("Error handling heartbeat for known bot: " + hb.Email)
@@ -85,7 +86,7 @@ func (s *Server) HandleHeartbeat(hb Heartbeat) error {
 
 	// bot is not known, add it to the list of known bots
 	fmt.Println("Heartbeat received from unknown bot with username: " + hb.Email)
-	bots = append(bots, b.Bot{Email: hb.Email, Status: hb.Status})
+	s.bots = append(s.bots, b.Bot{Email: hb.Email, Status: hb.Status})
 	fmt.Println("Levels: " + fmt.Sprint(hb.Stats) + "\n")
 
 	fmt.Println("Adding bot to database: " + hb.Email)
@@ -194,6 +195,18 @@ func (s *Server) monitorActiveBots() {
 		// the server is on the same machine as the bot
 		if b.PID != 0 && b.IsRunning() {
 			fmt.Printf("Bot %s is still running with PID %d\n", b.Email, b.PID)
+
+			// add the bot to the list of known bots (if not already present)
+			found := false
+			for _, knownBot := range s.bots {
+				if knownBot.ID == b.ID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				s.bots = append(s.bots, b)
+			}
 			continue
 		}
 

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -40,6 +41,8 @@ func Start(s *s.Server) {
 	router.POST("/accounts", insertAccount)
 	router.GET("/accounts", getAccounts)
 	router.GET("/accounts/:id", getAccountByID)
+	router.PUT("/accounts/:id", updateAccount)
+	router.DELETE("/accounts/:id", deleteAccount)
 
 	router.GET("/levels/:id", getLevelsByID)
 
@@ -116,7 +119,11 @@ func startBot(c *gin.Context) {
 	newBot.Params = startCmd.Params
 	newBot.Start()
 
-	server.DB.UpdateActivity(acc.ID, startCmd.Script+" "+fmt.Sprint(startCmd.Params), newBot.PID)
+	command := startCmd.Script
+	if len(startCmd.Params) > 0 {
+		command += " " + strings.Join(startCmd.Params, " ")
+	}
+	server.DB.InsertActivity(acc.ID, command, newBot.PID)
 
 	c.IndentedJSON(http.StatusCreated, startCmd)
 }
@@ -162,6 +169,45 @@ func handleHeartbeat(c *gin.Context) {
 	}
 
 	server.HandleHeartbeat(hb)
+}
+
+func updateAccount(c *gin.Context) {
+
+	id := c.Param("id")
+	if id == "" {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "ID is empty"})
+		return
+	}
+
+	var account struct {
+		Status string `json:"status"`
+	}
+
+	if err := c.BindJSON(&account); err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	status := account.Status
+
+	if id == "" || status == "" {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "id or status is empty"})
+		return
+	}
+
+	server.DB.UpdateAccountStatus(id, status)
+	c.IndentedJSON(http.StatusOK, gin.H{"message": "account updated"})
+}
+
+func deleteAccount(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "ID is empty"})
+		return
+	}
+
+	server.DB.DeleteAccount(id)
+	c.IndentedJSON(http.StatusOK, gin.H{"message": "account deleted"})
 }
 
 func insertAccount(c *gin.Context) {
