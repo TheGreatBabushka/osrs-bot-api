@@ -119,6 +119,8 @@ func startBot(c *gin.Context) {
 	newBot.Params = startCmd.Params
 	newBot.Start()
 
+	server.AddBot(newBot)
+
 	command := startCmd.Script
 	if len(startCmd.Params) > 0 {
 		command += " " + strings.Join(startCmd.Params, " ")

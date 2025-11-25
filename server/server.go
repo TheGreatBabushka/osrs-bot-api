@@ -65,6 +65,10 @@ func (s *Server) StopBot(id string) bool {
 	return false
 }
 
+func (s *Server) AddBot(bot b.Bot) {
+	s.bots = append(s.bots, bot)
+}
+
 func (s *Server) GetBots() []b.Bot {
 	return s.bots
 }
