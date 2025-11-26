@@ -24,11 +24,12 @@ type Server struct {
 }
 
 type Heartbeat struct {
-	Email    string    `json:"email"`    // dreambot username / osrs login email
-	Status   string    `json:"status"`   // current task status description
-	Username string    `json:"username"` // osrs username
-	Stats    db.Levels `json:"levels"`
-	PID      int       `json:"pid"`
+	Email    string         `json:"email"`    // dreambot username / osrs login email
+	Status   string         `json:"status"`   // current task status description
+	Username string         `json:"username"` // osrs username
+	Stats    db.Levels      `json:"levels"`
+	PID      int            `json:"pid"`
+	GainedXP map[string]int `json:"gained_xp"` // map of skill name to gained XP for the current session
 }
 
 // Start the server and begin bot monitoring goroutine(s)
@@ -131,6 +132,24 @@ func (s *Server) handleKnownHeartbeat(hb Heartbeat, bot b.Bot) error {
 		fmt.Println("Error updating levels for account: " + account.Username)
 		fmt.Println(err)
 		return err
+	}
+
+	// Store XP gained from heartbeat if present
+	if len(hb.GainedXP) > 0 {
+		activityID, err := s.DB.GetActiveActivityIDForAccount(account.ID)
+		if err != nil {
+			if err != sql.ErrNoRows {
+				fmt.Println("Error getting active activity for account: " + account.Username)
+				fmt.Println(err)
+			}
+			// No active activity, skip storing XP
+		} else {
+			for skill, xp := range hb.GainedXP {
+				if err := s.DB.UpsertActivityXP(activityID, skill, xp); err != nil {
+					fmt.Printf("Error storing XP for skill %s: %v\n", skill, err)
+				}
+			}
+		}
 	}
 
 	bots, err := s.DB.GetActiveBots()

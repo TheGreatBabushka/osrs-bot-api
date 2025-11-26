@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -45,6 +46,9 @@ func Start(s *s.Server) {
 	router.DELETE("/accounts/:id", deleteAccount)
 
 	router.GET("/levels/:id", getLevelsByID)
+
+	router.GET("/activity/:id/xp", getActivityXP)
+	router.GET("/accounts/:id/xp", getAccountXP)
 
 	server.Start()
 
@@ -310,6 +314,44 @@ func getBotActivityByID(c *gin.Context) {
 	}
 
 	c.IndentedJSON(http.StatusOK, activity)
+}
+
+func getActivityXP(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "ID is empty"})
+		return
+	}
+
+	activityID, err := strconv.Atoi(id)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Invalid activity ID"})
+		return
+	}
+
+	xp, err := server.DB.GetActivityXP(activityID)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, xp)
+}
+
+func getAccountXP(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "ID is empty"})
+		return
+	}
+
+	xp, err := server.DB.GetActivityXPByAccountID(id)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, xp)
 }
 
 // func getBotHeartbeat(c *gin.Context) {

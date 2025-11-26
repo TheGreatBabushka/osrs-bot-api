@@ -46,11 +46,20 @@ type Levels struct {
 
 // Represents a row in the activity table - used to track what the bot is/was doing
 type Activity struct {
+	ID        int     `json:"id"`
 	AccountID int     `json:"account_id"`
 	Command   string  `json:"command"`
 	StartedAt string  `json:"started_at"`
 	StoppedAt *string `json:"stopped_at,omitempty"`
 	PID       int     `json:"pid"`
+}
+
+// Represents a row in the activity_xp table - tracks XP gained during an activity session
+type ActivityXP struct {
+	ID         int    `json:"id"`
+	ActivityID int    `json:"activity_id"`
+	Skill      string `json:"skill"`
+	XPGained   int    `json:"xp_gained"`
 }
 
 type Database struct {
@@ -223,6 +232,7 @@ func (d *Database) GetBotActivity() ([]Activity, error) {
 		}
 
 		activity = append(activity, Activity{
+			ID:        id,
 			AccountID: accountID,
 			Command:   command,
 			StartedAt: startedAt,
@@ -264,6 +274,7 @@ func (d *Database) GetBotActivityByID(id string) ([]Activity, error) {
 		}
 
 		activity = append(activity, Activity{
+			ID:        id,
 			AccountID: accountID,
 			Command:   command,
 			StartedAt: startedAt,
@@ -535,4 +546,83 @@ func (d *Database) prepareQuery(query string, args ...interface{}) (*sql.Rows, e
 	}
 
 	return rows, nil
+}
+
+// GetActiveActivityIDForAccount returns the ID of the currently active (non-stopped) activity for an account
+func (d *Database) GetActiveActivityIDForAccount(accountID int) (int, error) {
+	db := d.Driver
+
+	var activityID int
+	err := db.QueryRow("SELECT id FROM activity WHERE account_id = ? AND (stopped_at IS NULL OR stopped_at <= started_at) ORDER BY started_at DESC LIMIT 1", accountID).Scan(&activityID)
+	if err != nil {
+		return 0, err
+	}
+
+	return activityID, nil
+}
+
+// UpsertActivityXP inserts or updates the XP gained for a skill during an activity session
+func (d *Database) UpsertActivityXP(activityID int, skill string, xpGained int) error {
+	db := d.Driver
+
+	stmt, err := db.Prepare("INSERT INTO activity_xp (activity_id, skill, xp_gained) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE xp_gained = ?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(activityID, skill, xpGained, xpGained)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// GetActivityXP returns all XP gained during a specific activity
+func (d *Database) GetActivityXP(activityID int) ([]ActivityXP, error) {
+	db := d.Driver
+
+	rows, err := db.Query("SELECT id, activity_id, skill, xp_gained FROM activity_xp WHERE activity_id = ?", activityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var xpList []ActivityXP
+	for rows.Next() {
+		var xp ActivityXP
+		if err := rows.Scan(&xp.ID, &xp.ActivityID, &xp.Skill, &xp.XPGained); err != nil {
+			return nil, err
+		}
+		xpList = append(xpList, xp)
+	}
+
+	return xpList, nil
+}
+
+// GetActivityXPByAccountID returns all XP gained for all activities of an account
+func (d *Database) GetActivityXPByAccountID(accountID string) ([]ActivityXP, error) {
+	db := d.Driver
+
+	rows, err := db.Query(`
+		SELECT ax.id, ax.activity_id, ax.skill, ax.xp_gained 
+		FROM activity_xp ax 
+		INNER JOIN activity a ON ax.activity_id = a.id 
+		WHERE a.account_id = ?`, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var xpList []ActivityXP
+	for rows.Next() {
+		var xp ActivityXP
+		if err := rows.Scan(&xp.ID, &xp.ActivityID, &xp.Skill, &xp.XPGained); err != nil {
+			return nil, err
+		}
+		xpList = append(xpList, xp)
+	}
+
+	return xpList, nil
 }
