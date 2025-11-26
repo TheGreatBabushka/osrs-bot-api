@@ -548,7 +548,8 @@ func (d *Database) prepareQuery(query string, args ...interface{}) (*sql.Rows, e
 	return rows, nil
 }
 
-// GetActiveActivityIDForAccount returns the ID of the currently active (non-stopped) activity for an account
+// GetActiveActivityIDForAccount returns the ID of the currently active (non-stopped) activity for an account.
+// An activity is considered active when stopped_at is NULL or stopped_at <= started_at (matching existing codebase pattern).
 func (d *Database) GetActiveActivityIDForAccount(accountID int) (int, error) {
 	db := d.Driver
 
@@ -561,7 +562,9 @@ func (d *Database) GetActiveActivityIDForAccount(accountID int) (int, error) {
 	return activityID, nil
 }
 
-// UpsertActivityXP inserts or updates the XP gained for a skill during an activity session
+// UpsertActivityXP inserts or updates the XP gained for a skill during an activity session.
+// The xpGained value represents the total XP gained for this skill in the current session,
+// not an incremental gain, so we overwrite the existing value.
 func (d *Database) UpsertActivityXP(activityID int, skill string, xpGained int) error {
 	db := d.Driver
 
