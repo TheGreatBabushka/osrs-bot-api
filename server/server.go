@@ -29,7 +29,7 @@ type Heartbeat struct {
 	Username string         `json:"username"` // osrs username
 	Stats    db.Levels      `json:"levels"`
 	PID      int            `json:"pid"`
-	GainedXP map[string]int `json:"gained_xp"` // map of skill name to gained XP for the current session
+	GainedXP map[string]int `json:"xp_gained"` // map of skill name to gained XP for the current session
 }
 
 // Start the server and begin bot monitoring goroutine(s)

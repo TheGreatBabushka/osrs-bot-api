@@ -93,8 +93,6 @@ func (d *Database) GetAccounts() ([]Account, error) {
 			log.Fatal(err)
 		}
 
-		log.Println("Fetched account: " + email + " (" + username + ") with status: " + status)
-
 		accounts = append(accounts, Account{
 			ID:       id,
 			Username: username,
